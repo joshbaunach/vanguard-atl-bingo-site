@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bingo Caller</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 20px;
+  }
+  #newNumberButton {
+    font-size: 2em;
+    padding: 10px 20px;
+    cursor: pointer;
+  }
+  #currentNumber {
+    font-size: 3em;
+    margin: 20px;
+    min-height: 1.2em;
+  }
+  #calledNumbersContainer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 800px;
+    margin: 20px auto;
+  }
+  .called-number {
+    width: 60px;
+    height: 60px;
+    margin: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #333;
+    font-size: 1.5em;
+    cursor: pointer;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<button id="newNumberButton">New Number</button>
+<div id="currentNumber"></div>
+<div id="calledNumbersContainer"></div>
+
+<script>
+// Cookie utility functions
+function setCookie(name, value, days) {
+  let expires = "";
+  if (days) {
+    let date = new Date();
+    date.setTime(date.getTime() + days*24*60*60*1000);
+    expires = "; expires=" + date.toUTCString();
+  }
+  document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+}
+
+function getCookie(name) {
+  let nameEQ = name + "=";
+  let ca = document.cookie.split(';');
+  for(let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0)===' ') c = c.substring(1,c.length);
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length,c.length);
+  }
+  return null;
+}
+
+// Initialize available and called numbers
+let availableNumbers = [];
+let calledNumbers = [];
+for (let i = 1; i <= 75; i++) {
+  availableNumbers.push(i);
+}
+
+// Load previously-called numbers from cookie if present
+let cookieData = getCookie('calledNumbers');
+if (cookieData) {
+  try {
+    let stored = JSON.parse(cookieData);
+    if (Array.isArray(stored)) {
+      calledNumbers = stored.map(Number).filter(n => !isNaN(n));
+      // Remove stored numbers from availableNumbers
+      calledNumbers.forEach(num => {
+        let index = availableNumbers.indexOf(num);
+        if (index > -1) availableNumbers.splice(index, 1);
+      });
+    }
+  } catch (e) {
+    console.error("Error parsing cookie data:", e);
+  }
+}
+
+// Sort the called numbers and update cookie
+calledNumbers.sort((a,b) => a - b);
+setCookie('calledNumbers', JSON.stringify(calledNumbers), 7);
+
+// References to DOM elements
+const newNumberButton = document.getElementById('newNumberButton');
+const currentNumberDisplay = document.getElementById('currentNumber');
+const calledNumbersContainer = document.getElementById('calledNumbersContainer');
+
+// Utility to get the Bingo letter for a given number
+function getLetter(num) {
+  if (num <= 15) return 'B';
+  if (num <= 30) return 'I';
+  if (num <= 45) return 'N';
+  if (num <= 60) return 'G';
+  return 'O';
+}
+
+// Simulate a random Bingo call for animation purposes
+function randomFakeBingo() {
+  let fake = Math.floor(Math.random() * 75) + 1;
+  return getLetter(fake) + fake;
+}
+
+// Add a single number to the container without sorting (used during refresh)
+function addNumberToContainer(letter, num) {
+  const span = document.createElement('span');
+  span.className = 'called-number';
+  span.textContent = letter + num;
+  span.dataset.number = num;
+  calledNumbersContainer.appendChild(span);
+}
+
+// Refresh the container with sorted called numbers
+function refreshContainer() {
+  calledNumbersContainer.innerHTML = '';
+  calledNumbers.forEach(num => {
+    let letter = getLetter(num);
+    addNumberToContainer(letter, num);
+  });
+}
+
+// Save the current calledNumbers list to cookie
+function saveCalledNumbers() {
+  setCookie('calledNumbers', JSON.stringify(calledNumbers), 7);
+}
+
+// Initial population of container with stored numbers
+refreshContainer();
+
+// Event handler for the "New Number" button
+newNumberButton.addEventListener('click', function() {
+  if (availableNumbers.length === 0) return;
+  newNumberButton.disabled = true;
+
+  // Start 3-second animation of cycling numbers
+  let interval = setInterval(function() {
+    currentNumberDisplay.textContent = randomFakeBingo();
+  }, 100);
+
+  // After 3 seconds, finalize the new number
+  setTimeout(function() {
+    clearInterval(interval);
+    let randomIndex = Math.floor(Math.random() * availableNumbers.length);
+    let number = availableNumbers.splice(randomIndex, 1)[0];
+    
+    // Add to calledNumbers, sort, update cookie, and refresh display
+    calledNumbers.push(number);
+    calledNumbers.sort((a,b) => a - b);
+    saveCalledNumbers();
+    
+    let letter = getLetter(number);
+    currentNumberDisplay.textContent = letter + number;
+    
+    refreshContainer();
+
+    // Re-enable button if there are more numbers to call
+    if (availableNumbers.length > 0) {
+      newNumberButton.disabled = false;
+    }
+  }, 3000);
+});
+
+// Right-click handler to remove a number from the previously-called list
+calledNumbersContainer.addEventListener('contextmenu', function(e) {
+  if (e.target.classList.contains('called-number')) {
+    e.preventDefault();
+    let confirmRemoval = confirm('Remove this number from the list?');
+    if (confirmRemoval) {
+      let num = parseInt(e.target.dataset.number, 10);
+      // Remove from calledNumbers array
+      let idx = calledNumbers.indexOf(num);
+      if (idx !== -1) {
+        calledNumbers.splice(idx, 1);
+      }
+      // Return number to availableNumbers and sort
+      availableNumbers.push(num);
+      availableNumbers.sort((a, b) => a - b);
+      // Update cookie and refresh container
+      saveCalledNumbers();
+      refreshContainer();
+    }
+  }
+});
+</script>
+</body>
+</html>
